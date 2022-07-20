@@ -1,0 +1,32 @@
+---
+- name: install dependencies
+  apt:
+    name:
+      - unzip
+      - acl
+      - openjdk-11-jdk
+      - net-tools
+    update_cache: true
+
+- name: Add the Jenkins Apt signing key
+  ansible.builtin.apt_key:
+    url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
+    state: present
+    keyring: /usr/share/keyrings/jenkins.gpg
+
+- name: Add Jenkins repository into sources list
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/usr/share/keyrings/jenkins.gpg] http://pkg.jenkins.io/debian-stable binary/
+    state: present
+    filename: jenkins
+
+- name: Install Jenkins
+  apt:
+    name: jenkins
+    update_cache: yes
+
+- name: Enable and start jenkins
+  ansible.builtin.systemd:
+    name: jenkins
+    state: started
+    enabled: yes
