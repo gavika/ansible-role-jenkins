@@ -1,4 +1,4 @@
-Role Name
+gavika.ansible-role-jenkins
 =========
 
 Install and configure Jenkins
@@ -25,7 +25,7 @@ Including an example of how to use your role (for instance, with variables passe
 
     - hosts: servers
       roles:
-         - { role: username.rolename, x: 42 }
+         - role: gavika.ansible-role-jenkins
 
 License
 -------
@@ -34,5 +34,5 @@ BSD
 
 Author Information
 ------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+Sudheer Satyanarayana
+Gavika Information Technologies Pvt. Ltd.
