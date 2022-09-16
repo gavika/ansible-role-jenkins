@@ -1,5 +1,5 @@
 ---
-- name: install dependencies
+- name: Install dependencies
   apt:
     name:
       - unzip
@@ -8,7 +8,7 @@
       - net-tools
     update_cache: true
 
-- name: Add the Jenkins Apt signing key
+- name: Add the Jenkins apt signing key
   ansible.builtin.apt_key:
     url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
     state: present
@@ -24,9 +24,37 @@
   apt:
     name: jenkins
     update_cache: yes
+  notify: configure default users
+
+- name: settings
+  include: settings.yml
 
 - name: Enable and start jenkins
   ansible.builtin.systemd:
     name: jenkins
     state: started
     enabled: yes
+
+- name: Wait for Jenkins to start up before proceeding
+  uri:
+    url: "http://{{ jenkins_hostname }}:{{ jenkins_http_port }}{{ jenkins_url_prefix }}/cli/"
+    method: GET
+    return_content: "yes"
+    timeout: 5
+    body_format: raw
+    follow_redirects: "no"
+    status_code: 200,403
+  register: result
+  until: (result.status == 403 or result.status == 200) and (result.content.find("Please wait while") == -1)
+  retries: "{{ jenkins_connection_retries }}"
+  delay: "{{ jenkins_connection_delay }}"
+  changed_when: false
+  check_mode: false
+
+- name: Remove Jenkins security init scripts after first startup
+  file:
+    path: "{{ jenkins_home }}/init.groovy.d/basic-security.groovy"
+    state: absent
+
+# Update Jenkins and install configured plugins.
+- include_tasks: plugins.yml
