@@ -1,0 +1,90 @@
+---
+- name: Check whether Jenkins systemd unit override directory exists
+  stat:
+    path: "{{ jenkins_systemd_override_directory }}"
+  register: jenkins_systemd_override_directory_stat
+
+- name: Ensure Jenkins systemd override directory exists
+  file:
+    path: "{{ jenkins_systemd_override_directory }}"
+    state: directory
+    mode: 0644
+  when: not jenkins_systemd_override_directory_stat.stat.exists
+
+- name: Check if Jenkins systemd override file exists
+  stat:
+    path: "{{ jenkins_systemd_override_file }}"
+  register: jenkins_systemd_override_file_stat
+
+- name: Ensure Jenkins systemd override file exists
+  file:
+    path: "{{ jenkins_systemd_override_file }}"
+    state: touch
+    mode: 0644
+  when: not jenkins_systemd_override_file_stat.stat.exists
+
+- name: Populate Jenkins systemd override file with service tag
+  copy:
+    dest: "{{ jenkins_systemd_override_file }}"
+    content: "[Service]"
+  when: not jenkins_systemd_override_file_stat.stat.exists
+
+- name: Modify variables in systemd override file
+  lineinfile:
+    dest: "{{ jenkins_systemd_override_file }}"
+    insertafter: '^Environment="{{ item.option }}='
+    regexp: '^Environment="{{ item.option }} '
+    line: 'Environment="{{ item.option }}={{ item.value }}"'
+    state: present
+    mode: 0644
+  with_items: "{{ jenkins_init_changes }}"
+  register: jenkins_init_prefix
+
+- name: Ensure Jenkins home {{ jenkins_home }} exists
+  file:
+    path: "{{ jenkins_home }}"
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: u+rwx
+    follow: true
+
+- name: Immediately restart Jenkins on init config changes
+  systemd:
+    name: jenkins
+    state: restarted
+    daemon_reload: true
+  when: jenkins_init_prefix.changed
+  tags: ['skip_ansible_lint']
+
+- name: Create custom init scripts directory.
+  file:
+    path: "{{ jenkins_home }}/init.groovy.d"
+    state: directory
+    owner: "{{ jenkins_process_user }}"
+    group: "{{ jenkins_process_group }}"
+    mode: 0775
+
+- name: Configure proxy config for Jenkins
+  template:
+    src: proxy.xml
+    dest: "{{ jenkins_home }}/proxy.xml"
+    owner: "{{ jenkins_process_user }}"
+    group: "{{ jenkins_process_group }}"
+    mode: 0664
+  register: jenkins_proxy_config
+  when:
+    - jenkins_proxy_host | length > 0
+    - jenkins_proxy_port | length > 0
+
+- name: Trigger handlers immediately in case Jenkins was installed
+  meta: flush_handlers
+
+- name: Immediately restart Jenkins on http or user changes.
+  service: name=jenkins state=restarted
+  when: >
+    (jenkins_users_config is defined and jenkins_users_config.changed)
+    or (jenkins_http_config is defined and jenkins_http_config.changed)
+    or (jenkins_home_config is defined and jenkins_home_config.changed)
+    or (jenkins_proxy_config is defined and jenkins_proxy_config.changed)
+  tags: ['skip_ansible_lint']
